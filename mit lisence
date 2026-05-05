@@ -1,18 +1,7 @@
 MIT License
 
-Copyright (c) 2026 SIM Activator Pro
+Copyright (c) 2026 SIM Activator Pro v2
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software...
+Permission is granted to use, modify, distribute... 
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
-
-DISCLAIMER OF LIABILITY:
-This tool is for **educational and personal use only** on SIM cards you legally own.
-It performs low-level AT commands on cellular modems. 
-Carrier activation (provisioning on their backend) still requires their official website/app using the ICCID + the IMEI of the final device.
-Any attempt to bypass carrier policies, activate bulk SIMs, or evade detection may violate carrier Terms of Service and applicable law.
-You are solely responsible for compliance. The authors assume no liability for any misuse, flagging, account suspension, or legal consequences.
+DISCLAIMER: This tool interacts with SIM cards via AT commands on cellular modems you physically own. It is for personal/educational use only. Misuse (bulk fraud, cloning, carrier evasion) may violate laws and carrier terms. You are 100% responsible. Authors assume ZERO liability.
