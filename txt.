@@ -1,0 +1,9 @@
+
+---
+
+### 3. `requirements.txt`
+
+```txt
+customtkinter==5.2.2
+pyserial==3.5
+Pillow==10.4.0
