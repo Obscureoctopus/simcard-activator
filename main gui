@@ -1,0 +1,173 @@
+import customtkinter as ctk
+import serial
+import serial.tools.list_ports
+import threading
+import time
+from tkinter import messagebox, filedialog
+from datetime import datetime
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+class SIMActivatorPro(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("🚀 SIM Activator Pro - Any SIM Tray")
+        self.geometry("1100x780")
+        self.resizable(False, False)
+        self.ser = None
+        self.iccid = "Not read yet"
+        self.imei = "Not read yet"
+
+        self.create_wizard_ui()
+
+    def create_wizard_ui(self):
+        # Header
+        header = ctk.CTkLabel(self, text="SIM Activator Pro\nAny Device • Any Carrier", 
+                             font=ctk.CTkFont(size=32, weight="bold"))
+        header.pack(pady=20)
+
+        # Step indicator
+        self.step_label = ctk.CTkLabel(self, text="Step 1/5: Connect your hardware", 
+                                      font=ctk.CTkFont(size=18))
+        self.step_label.pack(pady=5)
+
+        # Port frame
+        port_frame = ctk.CTkFrame(self)
+        port_frame.pack(pady=10, padx=40, fill="x")
+        ctk.CTkLabel(port_frame, text="Modem Port:", font=ctk.CTkFont(size=18)).pack(side="left", padx=15)
+        
+        self.port_var = ctk.StringVar()
+        self.port_combo = ctk.CTkComboBox(port_frame, variable=self.port_var, width=380, height=40, font=ctk.CTkFont(size=16))
+        self.port_combo.pack(side="left", padx=10)
+
+        ctk.CTkButton(port_frame, text="🔄 Refresh Ports", height=40, font=ctk.CTkFont(size=16),
+                      command=self.refresh_ports).pack(side="left", padx=8)
+        ctk.CTkButton(port_frame, text="Connect", fg_color="green", height=40, font=ctk.CTkFont(size=16),
+                      command=self.connect_modem).pack(side="left", padx=8)
+
+        self.status = ctk.CTkLabel(self, text="⭕ Disconnected - Insert SIM into tray", 
+                                  text_color="red", font=ctk.CTkFont(size=20))
+        self.status.pack(pady=12)
+
+        # Main action area
+        btn_frame = ctk.CTkFrame(self)
+        btn_frame.pack(pady=20, padx=40, fill="x")
+
+        big_buttons = [
+            ("1️⃣ Read SIM Info (ICCID)", self.read_sim_info, "blue"),
+            ("2️⃣ Enter PIN (if needed)", self.enter_pin, "orange"),
+            ("3️⃣ Full Power & Register", self.full_activation, "#00ff00"),
+            ("4️⃣ Check Live Signal", self.check_signal, "purple"),
+            ("✅ Export for Carrier Portal", self.export_data, "cyan")
+        ]
+
+        for i, (text, cmd, color) in enumerate(big_buttons):
+            btn = ctk.CTkButton(btn_frame, text=text, command=cmd, fg_color=color, 
+                               height=65, font=ctk.CTkFont(size=18, weight="bold"), text_color="black")
+            btn.grid(row=i//2, column=i%2, padx=12, pady=12, sticky="ew")
+
+        # Live log
+        self.log_box = ctk.CTkTextbox(self, height=260, font=ctk.CTkFont(family="Consolas", size=14))
+        self.log_box.pack(pady=15, padx=40, fill="both", expand=True)
+
+        self.log("✅ Welcome! This tool works with RPi + SIM7600X, BinQi H18, or any USB modem with SIM tray.")
+        self.log("👉 For phones: use this tool to prepare the SIM, then move it to your phone tray and finish on carrier site.")
+        self.refresh_ports()
+
+    def log(self, msg):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.log_box.insert("end", f"[{timestamp}] {msg}\n")
+        self.log_box.see("end")
+
+    def refresh_ports(self):
+        ports = [p.device for p in serial.tools.list_ports.comports() 
+                if any(x in p.description.lower() for x in ["usb", "simcom", "quectel", "huawei", "tty"])]
+        if not ports:
+            ports = ["No ports found – plug in your modem"]
+        self.port_combo.configure(values=ports)
+        if ports and "No ports" not in ports[0]:
+            self.port_var.set(ports[0])
+
+    def connect_modem(self):
+        port = self.port_var.get()
+        if "No ports" in port:
+            messagebox.showerror("Error", "No modem detected!")
+            return
+        try:
+            self.ser = serial.Serial(port, 115200, timeout=1)
+            self.status.configure(text=f"✅ Connected: {port}", text_color="lime")
+            self.log(f"Connected to {port} – SIM tray ready")
+        except Exception as e:
+            messagebox.showerror("Connection Failed", str(e))
+
+    def send_at(self, cmd):
+        if not self.ser:
+            self.log("❌ Not connected to modem!")
+            return None
+        try:
+            self.ser.write(f"{cmd}\r\n".encode())
+            time.sleep(1.2)
+            resp = self.ser.read(2048).decode(errors="ignore").strip()
+            self.log(f"→ {cmd}  ← {resp}")
+            return resp
+        except:
+            self.log("❌ Serial error")
+            return None
+
+    def read_sim_info(self):
+        threading.Thread(target=self._read_info_thread, daemon=True).start()
+
+    def _read_info_thread(self):
+        self.send_at("AT+CPIN?")
+        self.send_at("AT+CIMI")  # ICCID usually here or +ICCID
+        resp = self.send_at("AT+CCID")
+        if resp and "CCID:" in resp:
+            self.iccid = resp.split("CCID:")[-1].strip()
+        self.send_at("AT+GSN")  # IMEI
+        self.log(f"📋 ICCID captured: {self.iccid}")
+
+    def enter_pin(self):
+        pin = ctk.CTkInputDialog(text="Enter PIN code:", title="PIN Required").get_input()
+        if pin:
+            threading.Thread(target=lambda: self.send_at(f'AT+CPIN="{pin}"'), daemon=True).start()
+
+    def full_activation(self):
+        self.log("🚀 Starting FULL AUTO activation sequence...")
+        threading.Thread(target=self._full_seq, daemon=True).start()
+
+    def _full_seq(self):
+        self.send_at("AT+CPIN?")
+        time.sleep(1.5)
+        self.send_at("AT+CFUN=1")
+        time.sleep(4)
+        self.send_at("AT+COPS=0")
+        time.sleep(8)
+        self.send_at("AT+CSQ")
+        self.send_at("AT+CREG?")
+        self.send_at("AT+CPSI?")
+        self.log("🎉 FULL SEQUENCE COMPLETE – SIM is now registered!")
+        self.log("👉 Move SIM to any phone tray and complete activation on carrier website using the ICCID above.")
+
+    def check_signal(self):
+        threading.Thread(target=lambda: self.send_at("AT+CSQ"), daemon=True).start()
+
+    def export_data(self):
+        if not self.iccid or self.iccid == "Not read yet":
+            messagebox.showwarning("Missing data", "Run 'Read SIM Info' first!")
+            return
+        data = f"""SIM Activator Pro Export
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+ICCID: {self.iccid}
+IMEI (modem): {self.imei}
+Status: Ready for carrier portal
+"""
+        filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text", "*.txt")])
+        if filename:
+            with open(filename, "w") as f:
+                f.write(data)
+            self.log(f"✅ Exported to {filename} – take this file to carrier activation page")
+
+if __name__ == "__main__":
+    app = SIMActivatorPro()
+    app.mainloop()
